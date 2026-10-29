@@ -73,12 +73,13 @@ details summary{font-weight:600;color:var(--mut);cursor:pointer}
   <button class="sec" id="exp" style="width:100%;margin-bottom:10px">⬇ Export report (Excel)</button>
   <div class="chips" id="chips"><button data-f="all" class="on">All</button><button data-f="todo">Not started</button><button data-f="prog">In progress</button><button data-f="done">Complete</button></div>
   <input type="search" id="q" placeholder="Search SO, CP or destination" style="margin-bottom:10px">
+  <div class="card" id="devs"></div>
   <div class="card" id="list"></div>
  </section>
  <section id="t-set" class="hide">
   <div class="card"><p class="hint">1. Upload the waybill Excel for this batch (columns: MÃ VẬN ĐƠN, MÃ THAM CHIẾU, SỐ KIỆN). Carton counts come only from the Excel.</p>
    <input type="file" id="file" accept=".xlsx,.xls,.csv"><p class="hint" id="imp" style="margin-top:8px"></p></div>
-  <div class="card"><p class="hint">2. Name of this phone (shown to other phones)</p><input type="text" id="dev"></div>
+  <div class="card"><p class="hint">2. Name of this device. Give every phone and PC a different name</p><input type="text" id="dev"></div>
   <div class="card"><p class="hint">3. Live sync between phones (optional). Paste the Firebase Realtime Database URL, the same on every phone. Leave empty to work on this phone only.</p>
    <input type="url" id="fbu" placeholder="https://your-project-default-rtdb.firebasedatabase.app"><div class="row"><button class="sec" id="fbs" style="flex:1">Save and connect</button></div></div>
   <div class="card"><p class="hint">4. Start a new batch: clears all scans (on all phones if sync is on)</p><button class="sec" id="reset" style="color:var(--er)">Clear all scans</button></div>
@@ -88,13 +89,13 @@ details summary{font-weight:600;color:var(--mut);cursor:pointer}
 <nav><button data-t="scan" class="on">Scan</button><button data-t="orders">Orders</button><button data-t="set">Setup</button></nav>
 <script>
 const $=id=>document.getElementById(id);
-const S={orders:[],byCP:{},bySO:{},scans:new Map(),bills:new Map(),mode:'verify',active:null,pend:null,pendAt:0,me:'',shows:0,filter:'all'};
+const S={orders:[],byCP:{},bySO:{},scans:new Map(),bills:new Map(),mode:'verify',active:null,pend:null,pendAt:0,me:'',shows:0,filter:'all',devs:new Map(),on:false};
 const FB={url:'',es:null};
 const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
-S.me=ls.get('dev')||'Phone-'+Math.floor(10+Math.random()*90);FB.url=ls.get('fb')||'';
+S.me=ls.get('dev')||((/Android|iPhone|iPad|Mobi/.test(navigator.userAgent)?'Phone-':'PC-')+Math.floor(10+Math.random()*90));ls.set('dev',S.me);FB.url=ls.get('fb')||'';
 $('dev').value=S.me;$('fbu').value=FB.url;$('cont').checked=ls.get('cont')==='1';
 $('cont').onchange=e=>ls.set('cont',e.target.checked?'1':'0');
-$('dev').onchange=e=>{S.me=e.target.value.trim()||S.me;ls.set('dev',S.me)};
+$('dev').onchange=async e=>{const old=S.me;S.me=e.target.value.trim()||S.me;ls.set('dev',S.me);e.target.value=S.me;if(FB.url&&old!==S.me){try{await fb('/devices/'+dkey(old),'DELETE')}catch(x){}beat()}};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const hm=t=>new Date(t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
 
@@ -111,10 +112,11 @@ function index(){S.byCP={};S.bySO={};S.orders.forEach(o=>{S.byCP[o.cp]=o;S.bySO[
 function save(){ls.set('data',JSON.stringify({o:S.orders,s:[...S.scans],b:[...S.bills]}))}
 try{const d=JSON.parse(ls.get('data')||'null');if(d){S.orders=d.o||[];S.scans=new Map(d.s||[]);S.bills=new Map(d.b||[]);index()}}catch(e){}
 async function fb(path,method,body){const r=await fetch(FB.url+path+'.json',{method:method||'GET',body:body===undefined?undefined:JSON.stringify(body)});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
-function setSync(on){const e=$('sync');e.textContent=FB.url?(on?'● live sync':'sync offline'):'local only';e.className=on?'on':''}
+function setSync(on){S.on=on;const e=$('sync');e.textContent=FB.url?(on?'● live · '+online()+' online':'sync offline'):'local only';e.className=on?'on':''}
 function remote(p,d,first){const s=p.split('/').filter(Boolean),top=s[0];
- if(!top){if(d){if(d.batch&&d.batch.orders){S.orders=d.batch.orders;index()}S.scans=new Map(Object.entries(d.scans||{}));S.bills=new Map(Object.entries(d.bills||{}))}}
+ if(!top){if(d){if(d.batch&&d.batch.orders){S.orders=d.batch.orders;index()}S.scans=new Map(Object.entries(d.scans||{}));S.bills=new Map(Object.entries(d.bills||{}));S.devs=new Map(Object.entries(d.devices||{}))}}
  else if(top==='batch'){if(d&&d.orders){S.orders=d.orders;index()}}
+ else if(top==='devices'){const m=S.devs;if(s.length===1){m.clear();if(d)Object.entries(d).forEach(([k,v])=>m.set(k,v))}else if(d)m.set(s[1],d);else m.delete(s[1])}
  else if(top==='scans'||top==='bills'){const m=top==='scans'?S.scans:S.bills;
   if(s.length===1){m.clear();if(d)Object.entries(d).forEach(([k,v])=>m.set(k,v))}
   else if(d){if(!first&&d.by!==S.me&&!m.has(s[1]))toast(d.by+(top==='scans'?' scanned a carton of ':' applied a bill for ')+d.so);m.set(s[1],d)}
@@ -124,7 +126,7 @@ function connect(){if(FB.es){FB.es.close();FB.es=null}setSync(false);if(!FB.url)
  let first=true;const es=new EventSource(FB.url+'/.json');FB.es=es;
  es.addEventListener('put',ev=>{const m=JSON.parse(ev.data);remote(m.path,m.data,first);first=false});
  es.addEventListener('patch',ev=>{const m=JSON.parse(ev.data);for(const k in m.data)remote((m.path==='/'?'':m.path)+'/'+k,m.data[k],false)});
- es.onopen=()=>setSync(true);es.onerror=()=>setSync(false)}
+ es.onopen=()=>{setSync(true);beat()};es.onerror=()=>setSync(false)}
 $('fbs').onclick=async()=>{let u=$('fbu').value.trim().replace(/\/+$/,'');
  if(!u){FB.url='';ls.set('fb','');connect();return toast('Sync off: this phone only')}
  u=u.replace(/\/\.json.*$/,'').replace(/\/+$/,'');$('fbu').value=u;
@@ -134,13 +136,13 @@ $('fbs').onclick=async()=>{let u=$('fbu').value.trim().replace(/\/+$/,'');
 
 /* render */
 function status(o){const c=cnt(o);if(c>=o.n)return['Complete','ok'];if(c>0)return[c+'/'+o.n+' cartons','wr'];if(S.bills.has(o.cp))return['Bill applied','in'];return['Not started','']}
-function render(){
- const q=$('q').value.trim().toLowerCase();let done=0,car=0,app=0;
+function render(){setSync(S.on);
+ const per=whoMap();const q=$('q').value.trim().toLowerCase();let done=0,car=0,app=0;
  const rows=S.orders.map(o=>{const c=cnt(o);car+=Math.min(c,o.n);if(c>=o.n)done++;if(S.bills.has(o.cp))app++;const[st,k]=status(o);
   return{o,st,k,txt:(o.so+o.cp+o.dest).toLowerCase()}}).filter(r=>(!q||r.txt.includes(q))&&(S.filter==='all'||(S.filter==='done'&&r.k==='ok')||(S.filter==='prog'&&r.k==='wr')||(S.filter==='todo'&&(r.k===''||r.k==='in'))));
  $('s1').textContent=done+'/'+S.orders.length;$('s2').textContent=car+'/'+S.orders.reduce((a,o)=>a+o.n,0);$('s3').textContent=app;
- $('list').innerHTML=rows.length?rows.map(r=>`<div class="o"><div><b>${esc(r.o.so)} · ${r.o.n} ctn</b><span>${esc(r.o.cp)}<br>${esc(r.o.dest)}</span></div><span class="tag ${r.k}">${r.st}</span></div>`).join(''):'<p class="hint">No orders loaded. Go to Setup and upload the Excel.</p>';
- drawActive()}
+ $('list').innerHTML=rows.length?rows.map(r=>`<div class="o"><div><b>${esc(r.o.so)} · ${r.o.n} ctn</b><span>${esc(r.o.cp)}<br>${esc(r.o.dest)}${per[r.o.so]?'<br>By '+esc(per[r.o.so]):''}</span></div><span class="tag ${r.k}">${r.st}</span></div>`).join(''):'<p class="hint">No orders loaded. Go to Setup and upload the Excel.</p>';
+ drawDevs();drawActive()}
 function drawActive(){updateBtn();const o=S.active,a=$('act');if(!o){a.style.display='none';return}a.style.display='block';
  const c=cnt(o);a.innerHTML=`<b>${esc(o.so)}</b> · bill <b>…${esc(o.cp.slice(-6))}</b><br><span class="hint">${esc(o.dest)}</span><div class="dots">${Array.from({length:o.n},(_,i)=>`<i class="${i<c?'f':''}"></i>`).join('')}</div><p class="hint" style="margin:6px 0 0">${c}/${o.n} cartons scanned</p>`}
 
@@ -217,17 +219,27 @@ $('scanbtn').onclick=()=>{if(!S.orders.length){show('wr','No batch loaded','Uplo
 $('ovclose').onclick=closeScan;
 $('man').addEventListener('keydown',e=>{if(e.key==='Enter'){onCode(e.target.value);e.target.value=''}});
 
+/* devices */
+const dkey=n=>String(n).replace(/[^\w-]/g,'_');
+function online(){const t=Date.now();let n=0;S.devs.forEach(d=>{if(t-d.at<60000)n++});return n}
+function beat(){if(!FB.url)return;fb('/devices/'+dkey(S.me),'PUT',{name:S.me,at:Date.now()}).catch(()=>{})}
+setInterval(()=>{beat();setSync(S.on)},20000);
+function whoMap(){const m={};S.scans.forEach(s=>{const a=m[s.so]=m[s.so]||{};a[s.by]=(a[s.by]||0)+1});const o={};for(const k in m)o[k]=Object.entries(m[k]).map(([n,c])=>n+' ('+c+')').join(', ');return o}
+function devStats(){const st={},add=n=>st[n]=st[n]||{name:n,c:0,b:0,at:0};S.devs.forEach(d=>{add(d.name).at=d.at});S.scans.forEach(x=>add(x.by).c++);S.bills.forEach(x=>add(x.by).b++);add(S.me);return Object.values(st).sort((a,b)=>b.c-a.c)}
+function drawDevs(){const t=Date.now();$('devs').innerHTML='<b>Devices ('+online()+' online)</b>'+devStats().map(d=>{const on=d.at&&t-d.at<60000;return `<div class="o"><div><b>${on?'🟢':'⚪'} ${esc(d.name)}${d.name===S.me?' (this device)':''}</b><span>${on?'online':d.at?'last seen '+hm(d.at):'seen in scans'}</span></div><span class="tag ${d.c?'in':''}">${d.c} cartons · ${d.b} bills</span></div>`}).join('')+(FB.url?'':'<p class="hint" style="margin-top:8px">Turn on live sync in Setup to see other devices.</p>')}
+
 /* export */
 $('exp').onclick=()=>{
  if(!S.orders.length)return toast('No batch loaded');
  try{
   const lp=[...S.scans].map(([id,x])=>{const o=S.bySO[x.so]||{};return{'LPN':id,'SO#':x.so,'Nhattin CP#':x.cp,'Destination':o.dest||'','Scanned by':x.by,'Scan time':new Date(x.at).toLocaleString('sv-SE')}})
    .sort((a,b)=>a['SO#']<b['SO#']?-1:a['SO#']>b['SO#']?1:a.LPN<b.LPN?-1:1);
-  const sm=S.orders.map(o=>{const c=cnt(o);return{'SO#':o.so,'Nhattin CP#':o.cp,'Destination':o.dest,'Cartons expected (Excel)':o.n,'Cartons scanned':c,'Status':c>=o.n?'COMPLETE':c>0?'INCOMPLETE':'NOT SCANNED','Bill confirmed in Apply mode':S.bills.has(o.cp)?'Yes':''}});
+  const per=whoMap();const sm=S.orders.map(o=>{const c=cnt(o);return{'SO#':o.so,'Nhattin CP#':o.cp,'Destination':o.dest,'Cartons expected (Excel)':o.n,'Cartons scanned':c,'Status':c>=o.n?'COMPLETE':c>0?'INCOMPLETE':'NOT SCANNED','Bill confirmed in Apply mode':S.bills.has(o.cp)?'Yes':'','Scanned by (cartons)':per[o.so]||''}});
   const wb=XLSX.utils.book_new();
   const w1=XLSX.utils.json_to_sheet(lp.length?lp:[{'LPN':'(no cartons scanned yet)'}]);w1['!cols']=[{wch:18},{wch:12},{wch:18},{wch:34},{wch:12},{wch:20}];
   const w2=XLSX.utils.json_to_sheet(sm);w2['!cols']=[{wch:12},{wch:18},{wch:34},{wch:22},{wch:16},{wch:14},{wch:26}];
-  XLSX.utils.book_append_sheet(wb,w1,'LPN by order');XLSX.utils.book_append_sheet(wb,w2,'Order summary');
+  const w3=XLSX.utils.json_to_sheet(devStats().map(d=>({'Device':d.name,'Cartons scanned':d.c,'Bills confirmed':d.b,'Last seen':d.at?new Date(d.at).toLocaleString('sv-SE'):''})));w3['!cols']=[{wch:18},{wch:16},{wch:16},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,w1,'LPN by order');XLSX.utils.book_append_sheet(wb,w2,'Order summary');XLSX.utils.book_append_sheet(wb,w3,'Devices');
   XLSX.writeFile(wb,'bill-check-report-'+new Date().toISOString().slice(0,16).replace(/[-:T]/g,'')+'.xlsx');
  }catch(e){toast('Export failed: '+e.message)}};
 
