@@ -109,9 +109,10 @@ function connect(){if(FB.es){FB.es.close();FB.es=null}setSync(false);if(!FB.url)
  es.onopen=()=>setSync(true);es.onerror=()=>setSync(false)}
 $('fbs').onclick=async()=>{let u=$('fbu').value.trim().replace(/\/+$/,'');
  if(!u){FB.url='';ls.set('fb','');connect();return toast('Sync off: this phone only')}
- FB.url=u;try{await fb('');ls.set('fb',u);connect();
+ u=u.replace(/\/\.json.*$/,'').replace(/\/+$/,'');$('fbu').value=u;
+ FB.url=u;try{await fb('/');ls.set('fb',u);connect();
   if(S.orders.length)try{await fb('/batch','PUT',{orders:S.orders,by:S.me,at:Date.now()})}catch(e){}
-  toast('Connected')}catch(e){FB.url='';toast('Cannot connect. Check the URL and that database rules allow read and write')}};
+  toast('Connected')}catch(e){FB.url='';toast(/401|403/.test(e.message)?'Connected, but database rules block access. Use test mode rules':/404/.test(e.message)?'Database not found. Check the URL':'Cannot connect ('+e.message+'). Check the URL starts with https://')}};
 
 /* render */
 function status(o){const c=cnt(o);if(c>=o.n)return['Complete','ok'];if(c>0)return[c+'/'+o.n+' cartons','wr'];if(S.bills.has(o.cp))return['Bill applied','in'];return['Not started','']}
