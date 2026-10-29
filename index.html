@@ -3,60 +3,75 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#0a63b0">
-<title>Nhattin Bill Check</title>
+<meta name="theme-color" content="#002664">
+<title>DSV Bill Check</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <style>
-:root{--bg:#eef2f7;--card:#fff;--tx:#14181f;--mut:#667085;--bd:#dde1e8;--ok:#12803c;--okbg:#dcf5e5;--er:#c62828;--erbg:#fde2e2;--wr:#9a6200;--wrbg:#fdf0c9;--in:#0a63b0;--inbg:#dfeeff;--ac:#0a63b0}
-@media(prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#1a1f29;--tx:#eef1f6;--mut:#98a2b3;--bd:#2c3340;--ok:#4ade80;--okbg:#10341f;--er:#ff7b7b;--erbg:#431616;--wr:#fbbf24;--wrbg:#3d2f0a;--in:#8fc2ff;--inbg:#12304f;--ac:#3b8fe0}}
+:root{--bg:#f2f4f8;--card:#fff;--tx:#10182b;--mut:#5f6b82;--bd:#dbe0ea;--ok:#12803c;--okbg:#dcf5e5;--er:#c62828;--erbg:#fde2e2;--wr:#9a6200;--wrbg:#fdf0c9;--in:#002664;--inbg:#e3ebf8;--ac:#002664;--navy:#002664}
+@media(prefers-color-scheme:dark){:root{--bg:#0b1020;--card:#151c30;--tx:#eef1f8;--mut:#9aa6c0;--bd:#27304a;--ok:#4ade80;--okbg:#10341f;--er:#ff7b7b;--erbg:#431616;--wr:#fbbf24;--wrbg:#3d2f0a;--in:#a9c4f5;--inbg:#14264d;--ac:#3b6fd4;--navy:#001a47}}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;display:flex;flex-direction:column}
-header{display:flex;justify-content:space-between;align-items:center;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;background:#0a63b0;color:#fff;font-weight:700}
-#sync{font-size:12px;font-weight:500;opacity:.85}#sync.on{opacity:1;color:#9dffb8}
-main{flex:1;overflow-y:auto;padding:12px 12px 90px}
-nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px)}
-nav button{flex:1;padding:14px 0;border:0;background:none;color:var(--mut);font-size:14px;font-weight:600}
+header{display:flex;justify-content:space-between;align-items:center;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;background:var(--navy);color:#fff;border-bottom:3px solid #2f6fd1}
+.logo{font-weight:900;font-size:22px;letter-spacing:3px}.logo small{font-weight:500;font-size:13px;letter-spacing:.5px;margin-left:8px;opacity:.85}
+#sync{font-size:12px;opacity:.8}#sync.on{opacity:1;color:#9dffb8}
+main{flex:1;overflow-y:auto;padding:12px 12px 150px}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+nav button{flex:1;padding:14px 0;border:0;background:none;color:var(--mut);font-size:14px;font-weight:700}
 nav button.on{color:var(--ac);box-shadow:inset 0 3px 0 var(--ac)}
+#scanbar{position:fixed;left:0;right:0;bottom:calc(50px + env(safe-area-inset-bottom,0px));padding:10px 12px;background:linear-gradient(transparent,var(--bg) 35%);z-index:4}
+#scanbtn{width:100%;padding:18px;border-radius:14px;border:0;background:var(--ac);color:#fff;font-weight:800;font-size:18px;letter-spacing:.5px;box-shadow:0 4px 14px rgba(0,38,100,.35)}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:12px}
-.seg{display:flex;gap:6px;margin-bottom:12px}.seg button{flex:1;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font-weight:600}
-.seg button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.seg{display:flex;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:4px;margin-bottom:12px}.seg button{flex:1;padding:10px;border-radius:9px;border:0;background:none;color:var(--mut);font-weight:700}
+.seg button.on{background:var(--ac);color:#fff}
 .hint{color:var(--mut);font-size:13px;margin:0 0 8px}
-video{width:100%;max-height:34vh;background:#000;border-radius:10px;object-fit:cover;display:none;margin-bottom:8px}
-button.pri{width:100%;padding:12px;border-radius:10px;border:0;background:var(--ac);color:#fff;font-weight:700;font-size:15px}
 button.sec{padding:10px 12px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font-weight:600}
 input[type=text],input[type=search],input[type=url]{width:100%;padding:11px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:16px}
 .row{display:flex;gap:8px;margin-top:8px}
-#res{border-radius:12px;padding:16px;margin-bottom:12px;text-align:center;font-weight:700;font-size:20px;background:var(--inbg);color:var(--in)}
-#res small{display:block;font-weight:500;font-size:14px;margin-top:4px}
+#res{border-radius:14px;padding:20px 16px;margin-bottom:12px;text-align:center;font-weight:800;font-size:22px;background:var(--inbg);color:var(--in)}
+#res small{display:block;font-weight:500;font-size:14px;margin-top:6px}
 #res.ok{background:var(--okbg);color:var(--ok)}#res.er{background:var(--erbg);color:var(--er)}#res.wr{background:var(--wrbg);color:var(--wr)}
-.big{font-size:32px;font-weight:800;letter-spacing:1px}
-.dots{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.dots i{width:18px;height:18px;border-radius:5px;background:var(--bd)}.dots i.f{background:var(--ok)}
+.big{font-size:34px;font-weight:900;letter-spacing:1px}
+.dots{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.dots i{width:22px;height:22px;border-radius:6px;background:var(--bd)}.dots i.f{background:var(--ok)}
+.tg{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:14px;margin:4px 2px 12px}.tg input{width:20px;height:20px}
+details summary{font-weight:600;color:var(--mut);cursor:pointer}
 .o{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--bd)}.o:last-child{border:0}
 .o b{display:block}.o span{color:var(--mut);font-size:13px}
 .tag{align-self:center;white-space:nowrap;padding:3px 9px;border-radius:99px;font-size:12px;font-weight:700;background:var(--bd);color:var(--mut)}
 .tag.ok{background:var(--okbg);color:var(--ok)}.tag.wr{background:var(--wrbg);color:var(--wr)}.tag.in{background:var(--inbg);color:var(--in)}
 .sum{display:flex;gap:8px}.sum div{flex:1;text-align:center}.sum b{font-size:22px;display:block}
-#toast{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:10px;right:10px;background:#111;color:#fff;padding:10px 14px;border-radius:10px;z-index:9;display:none}
+.chips{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto}.chips button{white-space:nowrap;padding:7px 12px;border-radius:99px;border:1px solid var(--bd);background:var(--card);color:var(--mut);font-weight:600;font-size:13px}.chips button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+#toast{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:10px;right:10px;background:#111;color:#fff;padding:10px 14px;border-radius:10px;z-index:50;display:none}
+#ov{position:fixed;inset:0;background:#000;z-index:30;display:none}
+#vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#aim{position:absolute;left:4vw;right:4vw;top:45%;height:40vh;transform:translateY(-50%);border:3px solid #fff;border-radius:16px;box-shadow:0 0 0 100vmax rgba(0,0,0,.6)}
+#ovtop{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:calc(12px + env(safe-area-inset-top,0px)) 14px 12px;color:#fff;font-weight:700}
+#ovtop button,#torch{padding:10px 14px;border-radius:10px;border:0;background:rgba(255,255,255,.2);color:#fff;font-weight:700;font-size:15px}
+#ovres{position:absolute;left:12px;right:12px;bottom:calc(86px + env(safe-area-inset-bottom,0px));border-radius:12px;padding:12px;text-align:center;font-weight:800;font-size:18px;background:var(--inbg);color:var(--in)}
+#ovres small{display:block;font-weight:500;font-size:13px}
+#ovres.ok{background:var(--okbg);color:var(--ok)}#ovres.er{background:var(--erbg);color:var(--er)}#ovres.wr{background:var(--wrbg);color:var(--wr)}
+#ovbot{position:absolute;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:0;right:0;text-align:center}
 .hide{display:none}
 </style>
 </head>
 <body>
 <div id="toast"></div>
-<header><span>Nhattin Bill Check</span><span id="sync">local only</span></header>
+<div id="ov"><video id="vid" playsinline muted></video><div id="aim"></div>
+ <div id="ovtop"><span id="ovtitle">Scan</span><button id="ovclose">Close ✕</button></div>
+ <div id="ovres">Aim the barcode inside the frame</div>
+ <div id="ovbot"><button id="torch" class="hide">🔦 Light</button></div></div>
+<header><span class="logo">DSV<small>Bill Check</small></span><span id="sync">local only</span></header>
 <main>
  <section id="t-scan">
   <div class="seg"><button id="m-verify" class="on">Verify (bill first)</button><button id="m-apply">Apply (label first)</button></div>
   <div id="res">Upload the Excel in Setup, then scan</div>
   <div class="card" id="act" style="display:none"></div>
-  <div class="card">
-   <video id="vid" playsinline muted></video>
-   <button class="pri" id="cam">Start camera</button>
-   <div class="row"><input type="text" id="man" placeholder="Or type the code and press Enter" autocapitalize="characters" autocomplete="off"></div>
-  </div>
+  <label class="tg"><input type="checkbox" id="cont"> Keep camera open (continuous scanning)</label>
+  <details class="card"><summary>Type a code instead</summary><div class="row"><input type="text" id="man" placeholder="Type the code and press Enter" autocapitalize="characters" autocomplete="off"></div></details>
  </section>
  <section id="t-orders" class="hide">
   <div class="sum card"><div><b id="s1">0</b><span class="hint">orders done</span></div><div><b id="s2">0</b><span class="hint">cartons scanned</span></div><div><b id="s3">0</b><span class="hint">bills applied</span></div></div>
+  <div class="chips" id="chips"><button data-f="all" class="on">All</button><button data-f="todo">Not started</button><button data-f="prog">In progress</button><button data-f="done">Complete</button></div>
   <input type="search" id="q" placeholder="Search SO, CP or destination" style="margin-bottom:10px">
   <div class="card" id="list"></div>
  </section>
@@ -69,14 +84,16 @@ input[type=text],input[type=search],input[type=url]{width:100%;padding:11px;bord
   <div class="card"><p class="hint">4. Start a new batch: clears all scans (on all phones if sync is on)</p><button class="sec" id="reset" style="color:var(--er)">Clear all scans</button></div>
  </section>
 </main>
+<div id="scanbar"><button id="scanbtn">SCAN BILL</button></div>
 <nav><button data-t="scan" class="on">Scan</button><button data-t="orders">Orders</button><button data-t="set">Setup</button></nav>
 <script>
 const $=id=>document.getElementById(id);
-const S={orders:[],byCP:{},bySO:{},scans:new Map(),bills:new Map(),mode:'verify',active:null,pend:null,pendAt:0,me:''};
+const S={orders:[],byCP:{},bySO:{},scans:new Map(),bills:new Map(),mode:'verify',active:null,pend:null,pendAt:0,me:'',shows:0,filter:'all'};
 const FB={url:'',es:null};
 const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 S.me=ls.get('dev')||'Phone-'+Math.floor(10+Math.random()*90);FB.url=ls.get('fb')||'';
-$('dev').value=S.me;$('fbu').value=FB.url;
+$('dev').value=S.me;$('fbu').value=FB.url;$('cont').checked=ls.get('cont')==='1';
+$('cont').onchange=e=>ls.set('cont',e.target.checked?'1':'0');
 $('dev').onchange=e=>{S.me=e.target.value.trim()||S.me;ls.set('dev',S.me)};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const hm=t=>new Date(t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
@@ -84,7 +101,8 @@ const hm=t=>new Date(t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
 /* feedback */
 let ac;function beep(ok){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=ok?880:180;o.type=ok?'sine':'sawtooth';g.gain.value=.2;o.start();o.stop(ac.currentTime+(ok?.12:.6))}catch(e){}
  try{navigator.vibrate&&navigator.vibrate(ok?60:[200,80,200])}catch(e){}}
-function show(kind,html,sub){const r=$('res');r.className=kind;r.innerHTML=html+(sub?'<small>'+sub+'</small>':'');beep(kind==='ok'||kind==='in')}
+function show(kind,html,sub){S.shows++;const h=html+(sub?'<small>'+sub+'</small>':'');for(const id of['res','ovres']){const r=$(id);r.className=kind;r.innerHTML=h}beep(kind==='ok'||kind==='in')}
+function hint(t){const r=$('ovres');r.className='';r.innerHTML=t}
 function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',4000)}
 
 /* data + storage */
@@ -119,11 +137,11 @@ function status(o){const c=cnt(o);if(c>=o.n)return['Complete','ok'];if(c>0)retur
 function render(){
  const q=$('q').value.trim().toLowerCase();let done=0,car=0,app=0;
  const rows=S.orders.map(o=>{const c=cnt(o);car+=Math.min(c,o.n);if(c>=o.n)done++;if(S.bills.has(o.cp))app++;const[st,k]=status(o);
-  return{o,st,k,txt:(o.so+o.cp+o.dest).toLowerCase()}}).filter(r=>!q||r.txt.includes(q));
+  return{o,st,k,txt:(o.so+o.cp+o.dest).toLowerCase()}}).filter(r=>(!q||r.txt.includes(q))&&(S.filter==='all'||(S.filter==='done'&&r.k==='ok')||(S.filter==='prog'&&r.k==='wr')||(S.filter==='todo'&&(r.k===''||r.k==='in'))));
  $('s1').textContent=done+'/'+S.orders.length;$('s2').textContent=car+'/'+S.orders.reduce((a,o)=>a+o.n,0);$('s3').textContent=app;
  $('list').innerHTML=rows.length?rows.map(r=>`<div class="o"><div><b>${esc(r.o.so)} · ${r.o.n} ctn</b><span>${esc(r.o.cp)}<br>${esc(r.o.dest)}</span></div><span class="tag ${r.k}">${r.st}</span></div>`).join(''):'<p class="hint">No orders loaded. Go to Setup and upload the Excel.</p>';
  drawActive()}
-function drawActive(){const o=S.active,a=$('act');if(!o){a.style.display='none';return}a.style.display='block';
+function drawActive(){updateBtn();const o=S.active,a=$('act');if(!o){a.style.display='none';return}a.style.display='block';
  const c=cnt(o);a.innerHTML=`<b>${esc(o.so)}</b> · bill <b>…${esc(o.cp.slice(-6))}</b><br><span class="hint">${esc(o.dest)}</span><div class="dots">${Array.from({length:o.n},(_,i)=>`<i class="${i<c?'f':''}"></i>`).join('')}</div><p class="hint" style="margin:6px 0 0">${c}/${o.n} cartons scanned</p>`}
 
 /* scan logic */
@@ -159,32 +177,54 @@ async function apply(k,v){
   return show('er','WRONG BILL',b?`This bill is for ${esc(b.so)} (${esc(b.dest)})<br>Label is ${esc(o.so)} (${esc(o.dest)})`:'Bill not in Excel')}
  show('wr','Carton ID not needed here','Use Verify mode to count cartons')}
 
+/* scan button label */
+function updateBtn(){const o=S.active,b=$('scanbtn');let t;
+ if(S.mode==='verify'){if(!o)t='SCAN BILL';else{const c=cnt(o);t=c>=o.n?'SCAN NEXT BILL':'SCAN CARTON LABEL ('+(c+1)+' of '+o.n+')'}}
+ else t=o?'SCAN BILL TO CONFIRM':'SCAN CARTON LABEL';
+ b.textContent=t}
+
 /* camera */
-let stream,timer,det,mfr,cv=document.createElement('canvas');
+let stream,timer,det,mfr,track,cv=document.createElement('canvas');
 const rank=s=>{const k=classify(String(s).toUpperCase());return S.mode==='verify'?({cp:0,so:1,ctn:2}[k]??3):({so:0,cp:1}[k]??3)};
+function aimBox(){const v=$('vid'),r=v.getBoundingClientRect(),a=$('aim').getBoundingClientRect(),vw=v.videoWidth,vh=v.videoHeight,s=Math.max(r.width/vw,r.height/vh),ox=(r.width-vw*s)/2,oy=(r.height-vh*s)/2;
+ const x=Math.max(0,(a.left-r.left-ox)/s),y=Math.max(0,(a.top-r.top-oy)/s);return{x,y,w:Math.min(vw-x,a.width/s),h:Math.min(vh-y,a.height/s)}}
 async function startCam(){
+ if(stream)return;onCode.l='';
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return toast('Camera not supported here. Open the link in Chrome or Safari');
  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920}}})}catch(e){return toast('Camera blocked: allow camera access in browser settings, or type the code')}
- const v=$('vid');v.srcObject=stream;v.style.display='block';await v.play();$('cam').textContent='Stop camera';
+ const v=$('vid');v.srcObject=stream;$('ov').style.display='block';await v.play();
+ $('ovtitle').textContent=$('scanbtn').textContent;hint('Aim the barcode inside the frame');
+ track=stream.getVideoTracks()[0];try{$('torch').classList.toggle('hide',!(track.getCapabilities&&track.getCapabilities().torch))}catch(e){}
  if('BarcodeDetector' in window){det=new BarcodeDetector({formats:['code_128','qr_code']})}
- else{const h=new Map();h.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.CODE_128,ZXing.BarcodeFormat.QR_CODE]);h.set(ZXing.DecodeHintType.TRY_HARDER,true);mfr=new ZXing.MultiFormatReader();mfr.setHints(h)}
- let busy=false;timer=setInterval(async()=>{if(busy||v.readyState<2)return;busy=true;try{
+ else{det=null;const h=new Map();h.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.CODE_128,ZXing.BarcodeFormat.QR_CODE]);h.set(ZXing.DecodeHintType.TRY_HARDER,true);mfr=new ZXing.MultiFormatReader();mfr.setHints(h)}
+ let busy=false;timer=setInterval(async()=>{if(busy||v.readyState<2||!v.videoWidth)return;busy=true;try{
+  const b=aimBox(),sc=Math.min(1,1280/b.w);cv.width=Math.max(1,Math.round(b.w*sc));cv.height=Math.max(1,Math.round(b.h*sc));
+  const cx=cv.getContext('2d',{willReadFrequently:true});cx.drawImage(v,b.x,b.y,b.w,b.h,0,0,cv.width,cv.height);
   let vals=[];
-  if(det){vals=(await det.detect(v)).map(b=>b.rawValue)}
-  else{const w=Math.min(1280,v.videoWidth),hh=Math.round(w*v.videoHeight/v.videoWidth);cv.width=w;cv.height=hh;const cx=cv.getContext('2d',{willReadFrequently:true});cx.drawImage(v,0,0,w,hh);
-   try{vals=[mfr.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(cv)))).getText()]}catch(e){}}
-  vals.sort((a,b)=>rank(a)-rank(b));const kinds=vals.map(x=>classify(String(x).toUpperCase())),both=kinds.includes('so')&&kinds.includes('ctn');
-  for(const x of vals)await onCode(x,both)}catch(e){}busy=false},150)}
-function stopCam(){clearInterval(timer);if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$('vid').style.display='none';$('cam').textContent='Start camera'}
-$('cam').onclick=()=>stream?stopCam():startCam();
+  if(det){vals=(await det.detect(cv)).map(x=>x.rawValue)}
+  else{try{vals=[mfr.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(cv)))).getText()]}catch(e){}}
+  vals=[...new Set(vals.map(x=>String(x).trim().toUpperCase()))];
+  if(vals.length){vals.sort((a,b)=>rank(a)-rank(b));const kinds=vals.map(classify),hasSO=kinds.includes('so'),hasC=kinds.includes('ctn'),hasCP=kinds.includes('cp');
+   let go=true;
+   if(S.mode==='verify'&&S.active&&det&&!hasCP){if(hasC&&!hasSO)go=false;else if(hasSO&&!hasC&&vals.find(x=>classify(x)==='so')===S.active.so)go=false}
+   if(!go)hint('Show BOTH the SO# and LPN barcodes inside the frame');
+   else{const before=S.shows;for(const x of vals)await onCode(x,hasSO&&hasC);
+    if(S.shows!==before&&!(S.mode==='verify'&&S.pend)&&!$('cont').checked)setTimeout(closeScan,700)}}
+ }catch(e){}busy=false},150)}
+function closeScan(){clearInterval(timer);if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;track=null;$('ov').style.display='none';render()}
+let lit=false;$('torch').onclick=async()=>{try{lit=!lit;await track.applyConstraints({advanced:[{torch:lit}]})}catch(e){toast('Light not available')}};
+$('scanbtn').onclick=()=>{if(!S.orders.length){show('wr','No batch loaded','Upload the Excel in Setup first');return}startCam()};
+$('ovclose').onclick=closeScan;
 $('man').addEventListener('keydown',e=>{if(e.key==='Enter'){onCode(e.target.value);e.target.value=''}});
 
 /* UI */
 function setMode(m){S.mode=m;S.active=null;S.pend=null;$('m-verify').className=m==='verify'?'on':'';$('m-apply').className=m==='apply'?'on':'';
- show('in',m==='verify'?'Scan the Nhattin bill':'Scan the carton SO label',m==='verify'?'Then aim at each carton label (SO# + Carton ID together)':'Then scan the bill it points you to');drawActive()}
+ show('in',m==='verify'?'Scan the Nhattin bill':'Scan the carton SO label',m==='verify'?'Then scan each carton label (SO# + LPN together)':'Then scan the bill it points you to');drawActive()}
 $('m-verify').onclick=()=>setMode('verify');$('m-apply').onclick=()=>setMode('apply');
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
- ['scan','orders','set'].forEach(t=>$('t-'+t).classList.toggle('hide',t!==b.dataset.t));if(b.dataset.t!=='scan')stopCam();render()});
+ ['scan','orders','set'].forEach(t=>$('t-'+t).classList.toggle('hide',t!==b.dataset.t));$('scanbar').classList.toggle('hide',b.dataset.t!=='scan');if(stream)closeScan();render()});
 $('q').oninput=render;
+document.querySelectorAll('#chips button').forEach(b=>b.onclick=()=>{S.filter=b.dataset.f;document.querySelectorAll('#chips button').forEach(x=>x.classList.toggle('on',x===b));render()});
 
 /* Excel import */
 $('file').onchange=async e=>{const f=e.target.files[0];if(!f)return;
