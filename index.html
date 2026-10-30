@@ -79,6 +79,8 @@ details summary{font-weight:600;color:var(--mut);cursor:pointer}
  <section id="t-set" class="hide">
   <div class="card"><p class="hint">1. Upload the waybill Excel for this batch (columns: MÃ VẬN ĐƠN, MÃ THAM CHIẾU, SỐ KIỆN). Carton counts come only from the Excel.</p>
    <input type="file" id="file" accept=".xlsx,.xls,.csv"><p class="hint" id="imp" style="margin-top:8px"></p></div>
+  <div class="card"><p class="hint">1b. Optional extra check: upload the Daily Outgoing Report (SO# in column E, LPN in column AD) AFTER the waybill Excel. Only the SO# of this batch are used. The app then knows every valid LPN of each order.</p>
+   <input type="file" id="lfile" accept=".xls,.xlsx,.xml,.csv"><p class="hint" id="limp" style="margin-top:8px"></p></div>
   <div class="card"><p class="hint">2. Name of this device. Give every phone and PC a different name</p><input type="text" id="dev"></div>
   <div class="card"><p class="hint">3. Live sync between phones (optional). Paste the Firebase Realtime Database URL, the same on every phone. Leave empty to work on this phone only.</p>
    <input type="url" id="fbu" placeholder="https://your-project-default-rtdb.firebasedatabase.app"><div class="row"><button class="sec" id="fbs" style="flex:1">Save and connect</button></div></div>
@@ -108,7 +110,7 @@ function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';cle
 
 /* data + storage */
 function cnt(o){let n=0;S.scans.forEach(s=>{if(s.so===o.so)n++});return n}
-function index(){S.byCP={};S.bySO={};S.orders.forEach(o=>{S.byCP[o.cp]=o;S.bySO[o.so]=o})}
+function index(){S.byCP={};S.bySO={};S.lpnSO={};S.orders.forEach(o=>{S.byCP[o.cp]=o;S.bySO[o.so]=o;(o.lpns||[]).forEach(l=>S.lpnSO[l]=o.so)})}
 function save(){ls.set('data',JSON.stringify({o:S.orders,s:[...S.scans],b:[...S.bills]}))}
 try{const d=JSON.parse(ls.get('data')||'null');if(d){S.orders=d.o||[];S.scans=new Map(d.s||[]);S.bills=new Map(d.b||[]);index()}}catch(e){}
 async function fb(path,method,body){const r=await fetch(FB.url+path+'.json',{method:method||'GET',body:body===undefined?undefined:JSON.stringify(body)});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
@@ -163,8 +165,9 @@ async function verify(k,v,paired){
  if(k==='so'){if(v!==o.so){const x=S.bySO[v];return show('er','WRONG LABEL',`Label is ${esc(v)}${x?' ('+esc(x.dest)+')':''}<br>Bill is for ${esc(o.so)} (${esc(o.dest)})`)}
   S.pend=v;S.pendAt=Date.now();return show('ok','SO MATCHES ✔','Now scan the Carton ID (L…) on the same label')}
  if(k==='ctn'){
-  if(!paired&&stream&&'BarcodeDetector' in window)return show('wr','Aim at the whole label','SO# and Carton ID must both be in view together, so the carton is proven to belong to '+esc(o.so));
-  if(S.pend!==o.so||Date.now()-S.pendAt>25000)return show('wr','Scan the SO barcode on this label first','So the carton is proven to belong to '+esc(o.so));
+  if(o.lpns&&!o.lpns.includes(v)){const so2=S.lpnSO[v],x=so2&&S.bySO[so2];return show('er','WRONG CARTON',x?`LPN ${esc(v)} belongs to ${esc(so2)} (${esc(x.dest)})<br>Bill is for ${esc(o.so)} (${esc(o.dest)})`:`LPN ${esc(v)} is not in the LPN report for ${esc(o.so)}`)}
+  if(!o.lpns&&!paired&&stream&&'BarcodeDetector' in window)return show('wr','Aim at the whole label','SO# and Carton ID must both be in view together, so the carton is proven to belong to '+esc(o.so));
+  if(!o.lpns&&(S.pend!==o.so||Date.now()-S.pendAt>25000))return show('wr','Scan the SO barcode on this label first','So the carton is proven to belong to '+esc(o.so));
   const ex=S.scans.get(v);if(ex)return show(ex.so===o.so?'wr':'er',ex.so===o.so?'ALREADY SCANNED':'CARTON BELONGS TO '+esc(ex.so),`by ${esc(ex.by)} at ${hm(ex.at)}`);
   if(cnt(o)>=o.n)return show('er','TOO MANY CARTONS',esc(o.so)+' only has '+o.n+' per Excel');
   const rec={so:o.so,cp:o.cp,by:S.me,at:Date.now()};
@@ -172,6 +175,7 @@ async function verify(k,v,paired){
   S.scans.set(v,rec);S.pend=null;save();render();const c=cnt(o);
   return c>=o.n?show('ok','ORDER COMPLETE ✔','All '+o.n+' cartons verified for '+esc(o.so)):show('ok','Carton '+c+'/'+o.n+' ✔','Next carton: aim at its label')}}
 async function apply(k,v){
+ if(k==='ctn'&&S.lpnSO[v]){k='so';v=S.lpnSO[v]}
  if(k==='so'){const o=S.bySO[v];if(!o){S.active=null;drawActive();return show('er','SO NOT IN EXCEL',esc(v))}
   S.active=o;drawActive();return show('in',`<span class="big">…${esc(o.cp.slice(-6))}</span>`,`Find the bill ending in these digits<br>${esc(o.dest)} · ${o.n} carton(s)`)}
  if(k==='cp'){if(!S.active)return show('wr','Scan the carton SO label first');const o=S.active,b=S.byCP[v];
@@ -208,7 +212,7 @@ async function startCam(){
   vals=[...new Set(vals.map(x=>String(x).trim().toUpperCase()))];
   if(vals.length){vals.sort((a,b)=>rank(a)-rank(b));const kinds=vals.map(classify),hasSO=kinds.includes('so'),hasC=kinds.includes('ctn'),hasCP=kinds.includes('cp');
    let go=true;
-   if(S.mode==='verify'&&S.active&&det&&!hasCP){if(hasC&&!hasSO)go=false;else if(hasSO&&!hasC&&vals.find(x=>classify(x)==='so')===S.active.so)go=false}
+   if(S.mode==='verify'&&S.active&&!S.active.lpns&&det&&!hasCP){if(hasC&&!hasSO)go=false;else if(hasSO&&!hasC&&vals.find(x=>classify(x)==='so')===S.active.so)go=false}
    if(!go)hint('Show BOTH the SO# and LPN barcodes inside the frame');
    else{const before=S.shows;for(const x of vals)await onCode(x,hasSO&&hasC);
     if(S.shows!==before&&!(S.mode==='verify'&&S.pend)&&!$('cont').checked)setTimeout(closeScan,700)}}
@@ -234,7 +238,7 @@ $('exp').onclick=()=>{
  try{
   const lp=[...S.scans].map(([id,x])=>{const o=S.bySO[x.so]||{};return{'LPN':id,'SO#':x.so,'Nhattin CP#':x.cp,'Destination':o.dest||'','Scanned by':x.by,'Scan time':new Date(x.at).toLocaleString('sv-SE')}})
    .sort((a,b)=>a['SO#']<b['SO#']?-1:a['SO#']>b['SO#']?1:a.LPN<b.LPN?-1:1);
-  const per=whoMap();const sm=S.orders.map(o=>{const c=cnt(o);return{'SO#':o.so,'Nhattin CP#':o.cp,'Destination':o.dest,'Cartons expected (Excel)':o.n,'Cartons scanned':c,'Status':c>=o.n?'COMPLETE':c>0?'INCOMPLETE':'NOT SCANNED','Bill confirmed in Apply mode':S.bills.has(o.cp)?'Yes':'','Scanned by (cartons)':per[o.so]||''}});
+  const per=whoMap();const sm=S.orders.map(o=>{const c=cnt(o);return{'SO#':o.so,'Nhattin CP#':o.cp,'Destination':o.dest,'Cartons expected (Excel)':o.n,'Cartons scanned':c,'Status':c>=o.n?'COMPLETE':c>0?'INCOMPLETE':'NOT SCANNED','Bill confirmed in Apply mode':S.bills.has(o.cp)?'Yes':'','Scanned by (cartons)':per[o.so]||'','LPNs expected (LPN report)':o.lpns?o.lpns.length:'','LPNs not yet scanned':o.lpns?o.lpns.filter(l=>!S.scans.has(l)).join(', '):''}});
   const wb=XLSX.utils.book_new();
   const w1=XLSX.utils.json_to_sheet(lp.length?lp:[{'LPN':'(no cartons scanned yet)'}]);w1['!cols']=[{wch:18},{wch:12},{wch:18},{wch:34},{wch:12},{wch:20}];
   const w2=XLSX.utils.json_to_sheet(sm);w2['!cols']=[{wch:12},{wch:18},{wch:34},{wch:22},{wch:16},{wch:14},{wch:26}];
@@ -251,6 +255,26 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.query
  ['scan','orders','set'].forEach(t=>$('t-'+t).classList.toggle('hide',t!==b.dataset.t));$('scanbar').classList.toggle('hide',b.dataset.t!=='scan');if(stream)closeScan();render()});
 $('q').oninput=render;
 document.querySelectorAll('#chips button').forEach(b=>b.onclick=()=>{S.filter=b.dataset.f;document.querySelectorAll('#chips button').forEach(x=>x.classList.toggle('on',x===b));render()});
+
+/* LPN report import */
+function xmlRows(t){const d=new DOMParser().parseFromString(t,'application/xml'),out=[];
+ for(const r of d.getElementsByTagNameNS('*','Row')){const row=[];for(const c of r.children){if(c.localName!=='Cell')continue;const ix=c.getAttribute('ss:Index');if(ix)while(row.length<+ix-1)row.push('');const dt=[...c.children].find(x=>x.localName==='Data');row.push(dt?dt.textContent:'')}out.push(row)}return out}
+$('lfile').onchange=async e=>{const f=e.target.files[0];if(!f)return;const out=$('limp');
+ if(!S.orders.length){out.textContent='Upload the waybill Excel (step 1) first.';return}
+ out.textContent='Reading file, please wait...';
+ try{await new Promise(r=>setTimeout(r,50));
+  const buf=await f.arrayBuffer(),hasL=r=>r.some(c=>String(c).trim().toUpperCase()==='LPN');let rows=[];
+  try{const wb=XLSX.read(buf,{type:'array'});rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''})}catch(x){rows=[]}
+  if(!rows.some(hasL))rows=xmlRows(new TextDecoder().decode(buf));
+  const hi=Math.max(0,rows.findIndex(hasL));const H=rows[hi].map(c=>String(c).trim().toUpperCase());
+  const iL=H.indexOf('LPN')>=0?H.indexOf('LPN'):29,iS=4,m={};
+  rows.slice(hi+1).forEach(r=>{const so=String(r[iS]).trim().toUpperCase(),l=String(r[iL]).trim().toUpperCase();if(S.bySO[so]&&l)(m[so]=m[so]||new Set()).add(l)});
+  const bad=[];let found=0;
+  S.orders.forEach(o=>{const L=m[o.so];if(L){found++;o.lpns=[...L];if(o.lpns.length!==o.n)bad.push(o.so+': Excel '+o.n+' cartons vs '+o.lpns.length+' LPNs')}else{delete o.lpns;bad.push(o.so+': no LPN found')}});
+  index();save();render();
+  if(FB.url)try{await fb('/batch','PUT',{orders:S.orders,by:S.me,at:Date.now()})}catch(x){toast('Could not share LPN data with other phones')}
+  out.innerHTML='LPNs loaded for '+found+' of '+S.orders.length+' orders.'+(bad.length?'<br><b style="color:var(--wr)">Check:</b> '+bad.map(esc).join('<br>'):'<br>Carton counts match the waybill Excel for every order.')}
+ catch(x){out.textContent='Could not read file: '+x.message}};
 
 /* Excel import */
 $('file').onchange=async e=>{const f=e.target.files[0];if(!f)return;
