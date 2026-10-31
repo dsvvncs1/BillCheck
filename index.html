@@ -173,9 +173,9 @@ function drawActive(){updateBtn();const o=S.active,a=$('act');if(!o){a.style.dis
  const c=cnt(o);a.innerHTML=`<b>${esc(o.so)}</b> · bill <b>…${esc(o.cp.slice(-6))}</b><br><span class="hint">${esc(o.dest)}</span><div class="dots">${Array.from({length:o.n},(_,i)=>`<i class="${i<c?'f':''}"></i>`).join('')}</div><p class="hint" style="margin:6px 0 0">${c}/${o.n} cartons scanned</p>`;a.innerHTML=T(a.innerHTML)}
 
 /* scan logic */
-function classify(v){if(/^CP\d{8,}$/.test(v))return'cp';if(/^SO\d+$/.test(v))return'so';if(/^L\d{6,}$/.test(v))return'ctn';return''}
+function classify(v){if(/^CP\d{8,}$/.test(v))return'cp';if(/^SO\d+(-\d+)?$/.test(v))return'so';if(/^L\d{6,}$/.test(v))return'ctn';return''}
 async function onCode(raw,paired){
- const v=String(raw).trim().toUpperCase();if(!v)return;const now=Date.now();
+ const v=String(raw).replace(/\s+/g,'').toUpperCase();if(!v)return;const now=Date.now();
  if(onCode.l===v&&now-onCode.t<2500)return;onCode.l=v;onCode.t=now;
  if(!S.orders.length)return show('wr','No batch loaded','Upload the Excel in Setup first');
  const k=classify(v);if(!k)return show('wr','Unknown barcode',esc(v));
@@ -186,7 +186,7 @@ async function verify(k,v,paired){
   return c>=o.n?show('ok','Already complete',esc(o.so)+' has all '+o.n+' cartons'):show('in','Bill OK: '+esc(o.so),'Needs '+o.n+' cartons ('+c+' done). Now aim at each carton label')}
  if(!S.active)return show('wr','Scan the Nhattin bill first');
  const o=S.active;
- if(k==='so'){if(v!==o.so){const x=S.bySO[v];return show('er','WRONG LABEL',`Label is ${esc(v)}${x?' ('+esc(x.dest)+')':''}<br>Bill is for ${esc(o.so)} (${esc(o.dest)})`)}
+ if(k==='so'){if(v!==o.so&&!(o.lpns&&!v.includes('-')&&v===o.so.split('-')[0])){const x=S.bySO[v];return show('er','WRONG LABEL',`Label is ${esc(v)}${x?' ('+esc(x.dest)+')':''}<br>Bill is for ${esc(o.so)} (${esc(o.dest)})`)}
   S.pend=v;S.pendAt=Date.now();return show('ok','SO MATCHES ✔','Now scan the Carton ID (L…) on the same label')}
  if(k==='ctn'){
   if(o.lpns&&!o.lpns.includes(v)){const so2=S.lpnSO[v],x=so2&&S.bySO[so2];return show('er','WRONG CARTON',x?`LPN ${esc(v)} belongs to ${esc(so2)} (${esc(x.dest)})<br>Bill is for ${esc(o.so)} (${esc(o.dest)})`:`LPN ${esc(v)} is not in the LPN report for ${esc(o.so)}`)}
@@ -215,7 +215,7 @@ function updateBtn(){const o=S.active,b=$('scanbtn');let t;
 
 /* camera */
 let stream,timer,det,mfr,track,cv=document.createElement('canvas');
-const rank=s=>{const k=classify(String(s).toUpperCase());return S.mode==='verify'?({cp:0,so:1,ctn:2}[k]??3):({so:0,cp:1}[k]??3)};
+const rank=s=>{const k=classify(String(s).toUpperCase());return S.mode==='verify'?({cp:0,so:1,ctn:2}[k]??3):(k==='ctn'&&S.lpnSO[String(s).toUpperCase()]?-1:({so:0,cp:1}[k]??3))};
 function aimBox(){const v=$('vid'),r=v.getBoundingClientRect(),a=$('aim').getBoundingClientRect(),vw=v.videoWidth,vh=v.videoHeight,s=Math.max(r.width/vw,r.height/vh),ox=(r.width-vw*s)/2,oy=(r.height-vh*s)/2;
  const x=Math.max(0,(a.left-r.left-ox)/s),y=Math.max(0,(a.top-r.top-oy)/s);return{x,y,w:Math.min(vw-x,a.width/s),h:Math.min(vh-y,a.height/s)}}
 async function startCam(){
@@ -233,7 +233,8 @@ async function startCam(){
   let vals=[];
   if(det){vals=(await det.detect(cv)).map(x=>x.rawValue)}
   else{try{vals=[mfr.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(cv)))).getText()]}catch(e){}}
-  vals=[...new Set(vals.map(x=>String(x).trim().toUpperCase()))];
+  vals=[...new Set(vals.map(x=>String(x).replace(/\s+/g,'').toUpperCase()))];
+  if(S.mode==='apply'&&vals.some(x=>S.lpnSO[x]))vals=vals.filter(x=>classify(x)!=='so');
   if(vals.length){vals.sort((a,b)=>rank(a)-rank(b));const kinds=vals.map(classify),hasSO=kinds.includes('so'),hasC=kinds.includes('ctn'),hasCP=kinds.includes('cp');
    let go=true;
    if(S.mode==='verify'&&S.active&&!S.active.lpns&&det&&!hasCP){if(hasC&&!hasSO)go=false;else if(hasSO&&!hasC&&vals.find(x=>classify(x)==='so')===S.active.so)go=false}
@@ -292,7 +293,7 @@ $('lfile').onchange=async e=>{const f=e.target.files[0];if(!f)return;const out=$
   if(!rows.some(hasL))rows=xmlRows(new TextDecoder().decode(buf));
   const hi=Math.max(0,rows.findIndex(hasL));const H=rows[hi].map(c=>String(c).trim().toUpperCase());
   const iL=H.indexOf('LPN')>=0?H.indexOf('LPN'):29,iS=4,m={};
-  rows.slice(hi+1).forEach(r=>{const so=String(r[iS]).trim().toUpperCase(),l=String(r[iL]).trim().toUpperCase();if(S.bySO[so]&&l)(m[so]=m[so]||new Set()).add(l)});
+  rows.slice(hi+1).forEach(r=>{const so=String(r[iS]).replace(/\s+/g,'').toUpperCase(),l=String(r[iL]).replace(/\s+/g,'').toUpperCase();if(S.bySO[so]&&l)(m[so]=m[so]||new Set()).add(l)});
   const bad=[];let found=0;
   S.orders.forEach(o=>{const L=m[o.so];if(L){found++;o.lpns=[...L];if(o.lpns.length!==o.n)bad.push(o.so+': Excel '+o.n+' cartons vs '+o.lpns.length+' LPNs')}else{delete o.lpns;bad.push(o.so+': no LPN found')}});
   index();save();render();
@@ -308,8 +309,8 @@ $('file').onchange=async e=>{const f=e.target.files[0];if(!f)return;
   const col=(name,fb2)=>{const i=H.findIndex(h=>h.includes(name));return i>=0?i:fb2};
   const iCP=col('MÃ VẬN ĐƠN',1),iSO=col('MÃ THAM CHIẾU',2),iN=col('SỐ KIỆN',19),iP=col('TỈNH NHẬN',17),iD=col('QUẬN/HUYỆN NHẬN',18);
   const list=[],seen=new Set();let bad=0;
-  rows.slice(hi+1).forEach(r=>{const cp=String(r[iCP]).trim().toUpperCase(),so=String(r[iSO]).trim().toUpperCase(),n=parseInt(r[iN]);
-   if(!cp&&!so)return;if(!/^CP\d+$/.test(cp)||!/^SO\d+$/.test(so)||!(n>0)||seen.has(cp)){bad++;return}seen.add(cp);
+  rows.slice(hi+1).forEach(r=>{const cp=String(r[iCP]).trim().toUpperCase(),so=String(r[iSO]).replace(/\s+/g,'').toUpperCase(),n=parseInt(r[iN]);
+   if(!cp&&!so)return;if(!/^CP\d+$/.test(cp)||!/^SO\d+(-\d+)?$/.test(so)||!(n>0)||seen.has(cp)){bad++;return}seen.add(cp);
    list.push({cp,so,n,dest:[r[iD],r[iP]].filter(Boolean).join(', ')})});
   if(!list.length)return $('imp').textContent='No valid rows found. Check the file.';
   if((S.scans.size||S.bills.size)&&confirm(T('Clear the previous scans for this new batch?\n\nOK = clear them (recommended)\nCancel = keep them'))){
